@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { LayoutDashboard, ReceiptText, Calendar, Wallet, History, BarChart3, Settings, PlusCircle } from 'lucide-react';
+import { LayoutDashboard, ReceiptText, Calendar, Wallet, History, BarChart3, Settings, PlusCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Transaction, MonthlyBudget, BudgetState, CategoryType, CategoryBudget } from './types';
 import { loadState, saveState } from './utils/storage';
 import { CORE_CATEGORIES, DEFAULT_BUDGETS } from './constants';
@@ -60,6 +60,14 @@ const App = () => {
   useEffect(() => {
     saveState(state);
   }, [state]);
+
+  const changeMonth = (delta: number) => {
+    const [year, month] = currentMonth.split('-').map(Number);
+    const date = new Date(year, month - 1 + delta, 1);
+    const newYear = date.getFullYear();
+    const newMonth = String(date.getMonth() + 1).padStart(2, '0');
+    setCurrentMonth(`${newYear}-${newMonth}`);
+  };
 
   const handleAddTransaction = (t: Omit<Transaction, 'id'>) => {
     const newTransaction: Transaction = { ...t, id: crypto.randomUUID() };
@@ -162,9 +170,13 @@ const App = () => {
     { id: 'yearly', label: 'Trends', icon: BarChart3 },
   ];
 
-  const displayMonth = useMemo(() => {
+  const displayMonthLong = useMemo(() => {
     const [year, month] = currentMonth.split('-').map(Number);
-    return new Date(year, month - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    return new Date(year, month - 1).toLocaleDateString('en-US', { month: 'long' });
+  }, [currentMonth]);
+
+  const displayYear = useMemo(() => {
+    return currentMonth.split('-')[0];
   }, [currentMonth]);
 
   return (
@@ -194,14 +206,38 @@ const App = () => {
         </nav>
 
         <div className="mt-auto space-y-4">
-          <div className="p-5 bg-slate-50 rounded-3xl border border-slate-100">
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Viewing Period</label>
-            <input 
-              type="month" 
-              className="w-full bg-white border-2 border-slate-100 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-indigo-500 transition-colors cursor-pointer"
-              value={currentMonth}
-              onChange={e => setCurrentMonth(e.target.value)}
-            />
+          <div className="p-4 bg-slate-900 rounded-[2rem] shadow-xl text-white">
+            <label className="block text-[10px] font-black text-indigo-300 uppercase tracking-widest mb-4 ml-2">Viewing Period</label>
+            <div className="flex items-center justify-between gap-1">
+              <button 
+                onClick={() => changeMonth(-1)}
+                className="p-3 hover:bg-white/10 rounded-xl transition-colors active:scale-90"
+                aria-label="Previous Month"
+              >
+                <ChevronLeft className="w-6 h-6" />
+              </button>
+              
+              <div className="flex-1 text-center relative group overflow-hidden">
+                <input 
+                  type="month" 
+                  className="absolute inset-0 opacity-0 cursor-pointer z-10 w-full h-full"
+                  value={currentMonth}
+                  onChange={e => setCurrentMonth(e.target.value)}
+                />
+                <div className="flex flex-col items-center">
+                  <span className="text-lg font-black leading-none">{displayMonthLong}</span>
+                  <span className="text-xs font-bold text-indigo-300 tracking-tighter">{displayYear}</span>
+                </div>
+              </div>
+
+              <button 
+                onClick={() => changeMonth(1)}
+                className="p-3 hover:bg-white/10 rounded-xl transition-colors active:scale-90"
+                aria-label="Next Month"
+              >
+                <ChevronRight className="w-6 h-6" />
+              </button>
+            </div>
           </div>
           <button onClick={resetData} className="w-full flex items-center gap-2 px-5 py-3 text-slate-300 hover:text-rose-500 text-xs font-bold transition-colors">
             <Settings className="w-4 h-4" />
@@ -217,13 +253,18 @@ const App = () => {
           </div>
           <span className="font-black text-xl text-slate-900">ZachBudget</span>
         </div>
-        <div className="flex items-center gap-2">
-           <input 
-            type="month" 
-            className="bg-slate-100 border-none rounded-xl px-3 py-2 text-xs font-black text-indigo-600 outline-none cursor-pointer"
-            value={currentMonth}
-            onChange={e => setCurrentMonth(e.target.value)}
-          />
+        <div className="flex items-center bg-slate-100 rounded-2xl p-1 gap-1">
+           <button onClick={() => changeMonth(-1)} className="p-2 text-indigo-600"><ChevronLeft className="w-5 h-5" /></button>
+           <div className="relative px-2">
+              <input 
+                type="month" 
+                className="absolute inset-0 opacity-0 w-full h-full"
+                value={currentMonth}
+                onChange={e => setCurrentMonth(e.target.value)}
+              />
+              <span className="text-xs font-black text-indigo-900 uppercase">{displayMonthLong.slice(0,3)} {displayYear}</span>
+           </div>
+           <button onClick={() => changeMonth(1)} className="p-2 text-indigo-600"><ChevronRight className="w-5 h-5" /></button>
         </div>
       </header>
 
@@ -236,9 +277,19 @@ const App = () => {
                 {activeTab === 'budget' ? 'Budget Planner' : `${activeTab} View`}
               </h2>
             </div>
-            <div className="bg-white border-2 border-slate-100 px-6 py-4 rounded-3xl flex items-center gap-3 shadow-sm hover:shadow-md transition-shadow">
-               <Calendar className="w-5 h-5 text-indigo-600" />
-               <span className="font-black text-slate-800 text-lg">{displayMonth}</span>
+            <div className="bg-white border-2 border-slate-100 px-6 py-4 rounded-3xl flex items-center gap-4 shadow-sm hover:shadow-md transition-shadow group">
+               <button onClick={() => changeMonth(-1)} className="p-1 hover:bg-slate-50 rounded-lg text-slate-400 hover:text-indigo-600 transition-all"><ChevronLeft className="w-6 h-6" /></button>
+               <div className="flex flex-col items-center min-w-[120px] relative">
+                  <input 
+                    type="month" 
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                    value={currentMonth}
+                    onChange={e => setCurrentMonth(e.target.value)}
+                  />
+                  <span className="font-black text-slate-800 text-lg leading-tight">{displayMonthLong}</span>
+                  <span className="text-[10px] font-bold text-slate-400 tracking-widest">{displayYear}</span>
+               </div>
+               <button onClick={() => changeMonth(1)} className="p-1 hover:bg-slate-50 rounded-lg text-slate-400 hover:text-indigo-600 transition-all"><ChevronRight className="w-6 h-6" /></button>
             </div>
           </header>
 
