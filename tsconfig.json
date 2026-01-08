@@ -11,14 +11,9 @@
     "allowSyntheticDefaultImports": true,
     "strict": false,
     "noImplicitAny": false,
-    "jsx": "react",
-    "jsxFactory": "React.createElement",
-    "jsxFragmentFactory": "React.Fragment",
+    "jsx": "react-jsx",
     "noEmit": true,
-    "baseUrl": ".",
-    "paths": {
-      "*": ["*", "global.d.ts"]
-    }
+    "baseUrl": "."
   },
   "include": ["**/*.ts", "**/*.tsx", "global.d.ts"]
 }
