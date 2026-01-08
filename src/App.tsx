@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { LayoutDashboard, ReceiptText, Calendar, Wallet, History, BarChart3, Settings, PlusCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Transaction, MonthlyBudget, BudgetState, CategoryType, CategoryBudget } from './types';
-import { loadState, saveState } from '../utils/storage';
+import { loadState, saveState } from "./utils/storage";
 import { CORE_CATEGORIES, DEFAULT_BUDGETS } from './constants';
 import SummaryCards from './components/SummaryCards';
 import Charts from './components/Charts';
@@ -158,7 +158,7 @@ const App = () => {
       const resetState: BudgetState = { transactions: [], monthlyBudgets: [], customCategories: [], goals: [] };
       setState(resetState);
       saveState(resetState);
-      localStorage.removeItem('zenbudget_data');
+      localStorage.removeItem('zachbudget_data');
       window.location.reload();
     }
   };
