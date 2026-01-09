@@ -3,10 +3,36 @@ import { GoogleGenAI, Type } from "@google/genai";
 
 type Action = "categorize" | "insights" | "parseCsv" | "listModels";
 
+function pickFirstAvailableModel(models: any[], preferred: string[]) {
+  const names = new Set(
+    models
+      .map((m) => m?.name)
+      .filter(Boolean)
+      .map((n: string) => n.replace(/^models\//, "")) // normalize
+  );
+
+  for (const p of preferred) {
+    if (names.has(p)) return p;
+  }
+  return null;
+}
+
+async function listModels(ai: GoogleGenAI) {
+  const models: any[] = [];
+
+  // models.list returns an async iterable in this SDK
+  const pager = await ai.models.list({ pageSize: 200 });
+  for await (const m of pager) models.push(m);
+
+  // Keep only those that support generateContent
+  const textModels = models.filter((m) => m?.supportedGenerationMethods?.includes("generateContent"));
+  return { all: models, text: textModels };
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Allow GET for quick health check
+  // Helpful GET response so you know the route exists
   if (req.method === "GET") {
-    return res.status(200).json({ ok: true, hint: "POST with {action, payload}" });
+    return res.status(200).json({ ok: true, hint: "POST { action, payload } to this endpoint" });
   }
 
   if (req.method !== "POST") {
@@ -24,28 +50,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const ai = new GoogleGenAI({ apiKey });
 
-    // Use a currently documented, non-preview model code.
-    // Docs list gemini-2.5-flash as a supported model code. :contentReference[oaicite:2]{index=2}
-    const MODEL_FAST = "gemini-2.5-flash";
-
-    // Optional: list what your key can actually see (debug)
+    // Debug action: show exactly what models your key can access
     if (action === "listModels") {
-      const models: { name?: string; displayName?: string; supportedGenerationMethods?: string[] }[] = [];
-      const pager = await ai.models.list({ pageSize: 100 });
-
-      for await (const m of pager) models.push(m);
-
-      // Return only models that support generateContent
-      const textModels = models
-        .filter((m) => m.supportedGenerationMethods?.includes("generateContent"))
-        .map((m) => ({
-          name: m.name,
-          displayName: m.displayName,
-          supported: m.supportedGenerationMethods,
-        }));
-
-      return res.status(200).json({ count: textModels.length, models: textModels });
+      const { text } = await listModels(ai);
+      const out = text.map((m) => ({
+        name: m.name,
+        displayName: m.displayName,
+        supportedGenerationMethods: m.supportedGenerationMethods,
+      }));
+      return res.status(200).json({ count: out.length, models: out });
     }
+
+    // Prefer newer names, but fall back based on what your key actually sees.
+    // We'll dynamically choose from your available models list.
+    const { text: availableTextModels } = await listModels(ai);
+
+    const preferredFast = [
+      "gemini-2.5-flash",
+      "gemini-2.0-flash",
+      "gemini-1.5-flash-latest",
+      "gemini-1.5-flash",
+    ];
+
+    const preferredPro = [
+      "gemini-2.5-pro",
+      "gemini-2.0-pro",
+      "gemini-1.5-pro-latest",
+      "gemini-1.5-pro",
+    ];
+
+    const MODEL_FAST =
+      pickFirstAvailableModel(availableTextModels, preferredFast) ??
+      pickFirstAvailableModel(availableTextModels, preferredPro) ??
+      "gemini-1.5-flash-latest"; // last-ditch default
+
+    const MODEL_PRO =
+      pickFirstAvailableModel(availableTextModels, preferredPro) ??
+      pickFirstAvailableModel(availableTextModels, preferredFast) ??
+      "gemini-1.5-pro-latest"; // last-ditch default
 
     if (action === "insights") {
       const { transactions, monthlyBudgets, currentMonth } = payload ?? {};
@@ -75,7 +117,7 @@ Provide 3 concise, actionable financial tips based on this data. Focus on oversp
       `.trim();
 
       const response = await ai.models.generateContent({
-        model: MODEL_FAST,
+        model: MODEL_PRO,
         contents: prompt,
         config: {
           systemInstruction:
@@ -83,7 +125,10 @@ Provide 3 concise, actionable financial tips based on this data. Focus on oversp
         },
       });
 
-      return res.status(200).json({ text: response.text || "No insights available at the moment." });
+      return res.status(200).json({
+        text: response.text || "No insights available at the moment.",
+        modelUsed: MODEL_PRO,
+      });
     }
 
     if (action === "categorize") {
@@ -106,14 +151,18 @@ Provide 3 concise, actionable financial tips based on this data. Focus on oversp
 
       const text = response.text?.trim() || '{"category":"Other"}';
       const parsed = JSON.parse(text);
-      return res.status(200).json({ category: parsed.category ?? "Other" });
+
+      return res.status(200).json({
+        category: parsed.category ?? "Other",
+        modelUsed: MODEL_FAST,
+      });
     }
 
     if (action === "parseCsv") {
       const { csvText, allCategories } = payload ?? {};
 
       const response = await ai.models.generateContent({
-        model: MODEL_FAST,
+        model: MODEL_PRO,
         contents: `
 The following is raw text from a bank CSV file. Parse it into structured transactions.
 
@@ -146,7 +195,10 @@ ${String(csvText ?? "").substring(0, 8000)}
       });
 
       const text = response.text?.trim() || "[]";
-      return res.status(200).json({ transactions: JSON.parse(text) });
+      return res.status(200).json({
+        transactions: JSON.parse(text),
+        modelUsed: MODEL_PRO,
+      });
     }
 
     return res.status(400).json({ error: `Unknown action: ${action}` });
