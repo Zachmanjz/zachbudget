@@ -17,9 +17,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const ai = new GoogleGenAI({ apiKey });
 
-    // Use stable models (avoid preview names that often 404)
-    const MODEL_PRO = "gemini-1.5-pro";
-    const MODEL_FLASH = "gemini-1.5-flash";
+    // v1beta-compatible model IDs for @google/genai
+    const MODEL_PRO = "gemini-1.5-pro-latest";
+    const MODEL_FLASH = "gemini-1.5-flash-latest";
 
     if (action === "insights") {
       const { transactions, monthlyBudgets, currentMonth } = payload ?? {};
